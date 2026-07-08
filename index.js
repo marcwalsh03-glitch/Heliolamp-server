@@ -20,7 +20,8 @@ const mqttClient = mqtt.connect(MQTT_HOST, {
   password: MQTT_PASS,
   clientId: `heliolamp-server-${Math.random().toString(16).substring(2, 8)}`,
   reconnectPeriod: 2000,
-  keepalive: 30,        // send keepalive ping every 30 seconds
+  keepalive: 10,
+  clean: false,        // send keepalive ping every 30 seconds
   connectTimeout: 10000,
 });
 
@@ -28,11 +29,6 @@ mqttClient.on('connect', () => {
   console.log('Connected to HiveMQ broker');
   mqttConnected = true;
   mqttClient.subscribe(TOPIC_STATUS);
-  setInterval(() => {
-    if (mqttClient.connected) {
-      mqttClient.publish('heliolamp/keepalive', 'ping', { qos: 0 });
-    }
-  }, 20000);
 });
 
 mqttClient.on('reconnect', () => {
