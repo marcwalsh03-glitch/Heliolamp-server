@@ -6,59 +6,41 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const MQTT_HOST  = 'mqtts://1b79e318365946ee963e031a5b434aa8.s1.eu.hivemq.cloud:8883';
-const MQTT_USER  = 'Test1';
-const MQTT_PASS  = 'SunriseTOSunset';
-const TOPIC_CMD  = 'heliolamp/command';
+// Public HiveMQ broker — no account needed, stable connection
+const MQTT_HOST    = 'mqtt://broker.hivemq.com:1883';
+const TOPIC_CMD    = 'heliolamp/command';
 const TOPIC_STATUS = 'heliolamp/status';
 
 let lampStatus = 'unknown';
-let mqttConnected = false;
 
 const mqttClient = mqtt.connect(MQTT_HOST, {
-  username: MQTT_USER,
-  password: MQTT_PASS,
-  clientId: `heliolamp-server-${Math.random().toString(16).substring(2, 8)}`,
-  reconnectPeriod: 2000,
-  keepalive: 10,
-  clean: false,        // send keepalive ping every 30 seconds
+  clientId: 'heliolamp-server-permanent',
+  reconnectPeriod: 3000,
+  keepalive: 30,
   connectTimeout: 10000,
+  clean: true,
 });
 
 mqttClient.on('connect', () => {
-  console.log('Connected to HiveMQ broker');
-  mqttConnected = true;
+  console.log('Connected to HiveMQ public broker');
   mqttClient.subscribe(TOPIC_STATUS);
 });
 
-mqttClient.on('reconnect', () => {
-  console.log('Reconnecting to HiveMQ...');
-  mqttConnected = false;
-});
-
-mqttClient.on('offline', () => {
-  console.log('MQTT offline');
-  mqttConnected = false;
-});
+mqttClient.on('reconnect', () => console.log('Reconnecting...'));
+mqttClient.on('offline', () => console.log('MQTT offline'));
+mqttClient.on('error', (err) => console.error('MQTT error:', err.message));
 
 mqttClient.on('message', (topic, payload) => {
-  if (topic === TOPIC_STATUS) {
-    lampStatus = payload.toString();
-  }
-});
-
-mqttClient.on('error', (err) => {
-  console.error('MQTT error:', err.message);
-  mqttConnected = false;
+  if (topic === TOPIC_STATUS) lampStatus = payload.toString();
 });
 
 function sendToLamp(message) {
   return new Promise((resolve, reject) => {
     if (!mqttClient.connected) {
-      reject(new Error('MQTT broker not connected — retrying, please try again in a moment'));
+      reject(new Error('MQTT not connected — please try again in a moment'));
       return;
     }
-    mqttClient.publish(TOPIC_CMD, message, { qos: 1 }, (err) => {
+    mqttClient.publish(TOPIC_CMD, message, { qos: 0 }, (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -69,22 +51,18 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', mqtt: mqttClient.connected ? 'connected' : 'disconnected', lampStatus });
 });
 
-app.get('/status', (req, res) => {
-  res.json({ mqtt: mqttClient.connected ? 'connected' : 'disconnected', lampStatus });
-});
-
 app.post('/auto', async (req, res) => {
   const brightness = req.body?.brightness ?? 200;
   try {
     await sendToLamp(`auto:${brightness}`);
-    res.json({ ok: true, command: `auto:${brightness}` });
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 app.post('/manual', async (req, res) => {
-  const color      = req.body?.color ?? '#ffffff';
+  const color = req.body?.color ?? '#ffffff';
   const brightness = req.body?.brightness ?? 200;
   try {
     await sendToLamp(`manual:${color}:${brightness}`);
