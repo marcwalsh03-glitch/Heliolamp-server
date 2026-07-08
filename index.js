@@ -28,6 +28,11 @@ mqttClient.on('connect', () => {
   console.log('Connected to HiveMQ broker');
   mqttConnected = true;
   mqttClient.subscribe(TOPIC_STATUS);
+  setInterval(() => {
+    if (mqttClient.connected) {
+      mqttClient.publish('heliolamp/keepalive', 'ping', { qos: 0 });
+    }
+  }, 20000);
 });
 
 mqttClient.on('reconnect', () => {
