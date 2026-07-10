@@ -6,7 +6,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Public HiveMQ broker — no account needed, stable connection
 const MQTT_HOST    = 'mqtt://broker.hivemq.com:1883';
 const TOPIC_CMD    = 'heliolamp/command';
 const TOPIC_STATUS = 'heliolamp/status';
@@ -29,7 +28,6 @@ mqttClient.on('connect', () => {
 mqttClient.on('reconnect', () => console.log('Reconnecting...'));
 mqttClient.on('offline', () => console.log('MQTT offline'));
 mqttClient.on('error', (err) => console.error('MQTT error:', err.message));
-
 mqttClient.on('message', (topic, payload) => {
   if (topic === TOPIC_STATUS) lampStatus = payload.toString();
 });
@@ -37,7 +35,7 @@ mqttClient.on('message', (topic, payload) => {
 function sendToLamp(message) {
   return new Promise((resolve, reject) => {
     if (!mqttClient.connected) {
-      reject(new Error('MQTT not connected — please try again in a moment'));
+      reject(new Error('MQTT not connected - please try again in a moment'));
       return;
     }
     mqttClient.publish(TOPIC_CMD, message, { qos: 0 }, (err) => {
@@ -72,9 +70,10 @@ app.post('/manual', async (req, res) => {
   }
 });
 
-app.post('/night', async (req, res) => {
+app.post('/nightlight', async (req, res) => {
+  const enabled = req.body?.enabled ?? false;
   try {
-    await sendToLamp('night');
+    await sendToLamp(enabled ? 'nightlight:on' : 'nightlight:off');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
