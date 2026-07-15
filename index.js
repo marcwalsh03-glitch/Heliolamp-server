@@ -86,4 +86,32 @@ app.post('/nightlight', async (req, res) => {
   }
 });
 
-app.post
+app.post('/off', async (req, res) => {
+  try {
+    await sendToLamp('off');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/schedule', async (req, res) => {
+  const sunrise = req.body?.sunrise ?? '06:00';
+  const sunset  = req.body?.sunset  ?? '20:00';
+  const [sh, sm] = sunrise.split(':').map(Number);
+  const [eh, em] = sunset.split(':').map(Number);
+  if ((eh * 60 + em) - (sh * 60 + sm) < 120) {
+    return res.status(400).json({ ok: false, error: 'Sunset must be at least 2 hours after sunrise.' });
+  }
+  try {
+    await sendToLamp(`schedule:${sunrise}:${sunset}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`HelioLamp server running on port ${PORT}`);
+});
